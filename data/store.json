@@ -1,0 +1,416 @@
+{
+  "marketItems": [
+    {
+      "id": "mkt-101",
+      "title": "คัมภีร์คณิตศาสตร์ ม.ปลาย & แคลคูลัสเบื้องต้น",
+      "authorOrPublisher": "อ.จักรินทร์ วรรณโพธิ์กลาง",
+      "subject": "คณิตศาสตร์",
+      "level": "ม.ปลาย",
+      "kind": "หนังสือเสริมความรู้",
+      "description": "สรุปเนื้อหาฟังก์ชัน ตรีโกณมิติ และแคลคูลัส พร้อมโจทย์แยกบทและเฉลยละเอียดครบทุกข้อ มีไฮไลท์บทลิมิตเล็กน้อย กระดาษสะอาดอ่านง่าย",
+      "imageUrl": "/src/assets/images/book_math_calculus_1794906289445.jpg",
+      "originalPrice": 280,
+      "sellingPrice": 160,
+      "evaluation": {
+        "conditionScore": 82,
+        "conditionGrade": "A",
+        "conditionLabel": "สภาพดีมาก",
+        "suggestedPrice": 160,
+        "minFairPrice": 135,
+        "maxFairPrice": 185,
+        "discountPercent": 43,
+        "breakdown": [
+          {
+            "criterion": "สภาพรูปเล่มและหน้ากระดาษ",
+            "impactLabel": "ดีมาก",
+            "points": 36
+          },
+          {
+            "criterion": "ร่องรอยการขีดเขียนและไฮไลท์",
+            "impactLabel": "มีโน้ตหรือไฮไลท์เล็กน้อย",
+            "points": 19
+          },
+          {
+            "criterion": "อายุการใช้งานและหลักสูตร",
+            "impactLabel": "1–2 ปี",
+            "points": 12
+          },
+          {
+            "criterion": "ความครบถ้วนของปก เฉลย หรือไฟล์แนบ",
+            "impactLabel": "ครบถ้วนสมบูรณ์",
+            "points": 15
+          }
+        ]
+      },
+      "evaluationInput": {
+        "originalPrice": 280,
+        "physicalCondition": "good",
+        "markingLevel": "light",
+        "usageAgeYears": "1to2",
+        "hasCompleteness": true,
+        "kind": "หนังสือเสริมความรู้"
+      },
+      "sellerId": "stu-2",
+      "sellerName": "ณัฐธิดา วงศ์สุวรรณ",
+      "sellerSchool": "โรงเรียนพิชัย (ม.6/1)",
+      "sellerContact": "ห้อง 601 · Line: natthida.w",
+      "status": "available",
+      "createdAt": "2026-11-13"
+    },
+    {
+      "id": "mkt-102",
+      "title": "ฟิสิกส์กลศาสตร์ ไฟฟ้า และคลื่น ฉบับเตรียมสอบ A-Level",
+      "authorOrPublisher": "สถาบันกวดวิชาฟิสิกส์ประยุกต์",
+      "subject": "ฟิสิกส์",
+      "level": "เตรียมสอบเข้ามหาวิทยาลัย",
+      "kind": "หนังสือเรียน",
+      "description": "สภาพใหม่มาก ไม่มีรอยขีดเขียนในแบบฝึกหัด มีภาพประกอบเวกเตอร์และวงจรไฟฟ้าชัดเจน เหมาะสำหรับน้อง ม.5–ม.6 เตรียมสอบเข้า",
+      "imageUrl": "/src/assets/images/book_science_physics_1794906290811.jpg",
+      "originalPrice": 320,
+      "sellingPrice": 210,
+      "evaluation": {
+        "conditionScore": 100,
+        "conditionGrade": "A+",
+        "conditionLabel": "สภาพดีเยี่ยม",
+        "suggestedPrice": 210,
+        "minFairPrice": 180,
+        "maxFairPrice": 224,
+        "discountPercent": 34,
+        "breakdown": [
+          {
+            "criterion": "สภาพรูปเล่มและหน้ากระดาษ",
+            "impactLabel": "ดีเยี่ยม",
+            "points": 45
+          },
+          {
+            "criterion": "ร่องรอยการขีดเขียนและไฮไลท์",
+            "impactLabel": "ไม่มีรอยขีดเขียน / ไฮไลท์",
+            "points": 25
+          },
+          {
+            "criterion": "อายุการใช้งานและหลักสูตร",
+            "impactLabel": "ไม่เกิน 1 ปี (หลักสูตรล่าสุด)",
+            "points": 15
+          },
+          {
+            "criterion": "ความครบถ้วนของปก เฉลย หรือไฟล์แนบ",
+            "impactLabel": "ครบถ้วนสมบูรณ์",
+            "points": 15
+          }
+        ]
+      },
+      "evaluationInput": {
+        "originalPrice": 320,
+        "physicalCondition": "excellent",
+        "markingLevel": "none",
+        "usageAgeYears": "under1",
+        "hasCompleteness": true,
+        "kind": "หนังสือเรียน"
+      },
+      "sellerId": "stu-2",
+      "sellerName": "ณัฐธิดา วงศ์สุวรรณ",
+      "sellerSchool": "โรงเรียนพิชัย (ม.6/1)",
+      "sellerContact": "ห้อง 601 · Line: natthida.w",
+      "status": "available",
+      "createdAt": "2026-11-14"
+    },
+    {
+      "id": "mkt-103",
+      "title": "English Reading & Vocabulary Workbook (B1–B2)",
+      "authorOrPublisher": "ELT Academic Press",
+      "subject": "ภาษาอังกฤษ",
+      "level": "ม.ปลาย",
+      "kind": "หนังสือเสริมความรู้",
+      "description": "แบบฝึกหัดคำศัพท์และบทความภาษาอังกฤษ ระดับ B1+ ติดแถบคั่นหน้าแบ่งหมวดหมู่ไว้เรียบร้อย มีจดคำแปลดินสอประมาณ 20%",
+      "imageUrl": "/src/assets/images/book_english_vocab_1794906291129.jpg",
+      "originalPrice": 240,
+      "sellingPrice": 130,
+      "evaluation": {
+        "conditionScore": 75,
+        "conditionGrade": "A",
+        "conditionLabel": "สภาพดีมาก",
+        "suggestedPrice": 130,
+        "minFairPrice": 110,
+        "maxFairPrice": 150,
+        "discountPercent": 46,
+        "breakdown": [
+          {
+            "criterion": "สภาพรูปเล่มและหน้ากระดาษ",
+            "impactLabel": "ดีมาก",
+            "points": 36
+          },
+          {
+            "criterion": "ร่องรอยการขีดเขียนและไฮไลท์",
+            "impactLabel": "มีรอยขีดเขียนและทำแบบฝึกหัดบางส่วน",
+            "points": 12
+          },
+          {
+            "criterion": "อายุการใช้งานและหลักสูตร",
+            "impactLabel": "1–2 ปี",
+            "points": 12
+          },
+          {
+            "criterion": "ความครบถ้วนของปก เฉลย หรือไฟล์แนบ",
+            "impactLabel": "ครบถ้วนสมบูรณ์",
+            "points": 15
+          }
+        ]
+      },
+      "evaluationInput": {
+        "originalPrice": 240,
+        "physicalCondition": "good",
+        "markingLevel": "moderate",
+        "usageAgeYears": "1to2",
+        "hasCompleteness": true,
+        "kind": "หนังสือเสริมความรู้"
+      },
+      "sellerId": "stu-3",
+      "sellerName": "ธนกฤต ศรีสวัสดิ์",
+      "sellerSchool": "โรงเรียนพิชัย (ม.4/3)",
+      "sellerContact": "ห้อง 403 · Line: thanakrit.s",
+      "status": "available",
+      "createdAt": "2026-11-15"
+    },
+    {
+      "id": "mkt-104",
+      "title": "ชุดชีทสรุปชีววิทยา: โครงสร้างเซลล์และการสังเคราะห์ด้วยแสง (พิมพ์สี)",
+      "authorOrPublisher": "ชมรมติวเพื่อน้อง ม.6",
+      "subject": "ชีววิทยา",
+      "level": "ม.ปลาย",
+      "kind": "ชีทสรุป",
+      "description": "ชีทสรุปเข้าเล่มพิมพ์สี 36 หน้า ภาพวาดออร์แกเนลล์และการแบ่งเซลล์ Mitosis/Meiosis อ่านทบทวนก่อนสอบปลายภาคได้ทันที",
+      "imageUrl": "/src/assets/images/notes_biology_summary_1794906291530.jpg",
+      "originalPrice": 120,
+      "sellingPrice": 60,
+      "evaluation": {
+        "conditionScore": 100,
+        "conditionGrade": "A+",
+        "conditionLabel": "สภาพดีเยี่ยม",
+        "suggestedPrice": 60,
+        "minFairPrice": 50,
+        "maxFairPrice": 66,
+        "discountPercent": 50,
+        "breakdown": [
+          {
+            "criterion": "สภาพรูปเล่มและหน้ากระดาษ",
+            "impactLabel": "ดีเยี่ยม",
+            "points": 45
+          },
+          {
+            "criterion": "ร่องรอยการขีดเขียนและไฮไลท์",
+            "impactLabel": "ไม่มีรอยขีดเขียน / ไฮไลท์",
+            "points": 25
+          },
+          {
+            "criterion": "อายุการใช้งานและหลักสูตร",
+            "impactLabel": "ไม่เกิน 1 ปี (หลักสูตรล่าสุด)",
+            "points": 15
+          },
+          {
+            "criterion": "ความครบถ้วนของปก เฉลย หรือไฟล์แนบ",
+            "impactLabel": "ครบถ้วนสมบูรณ์",
+            "points": 15
+          }
+        ]
+      },
+      "evaluationInput": {
+        "originalPrice": 120,
+        "physicalCondition": "excellent",
+        "markingLevel": "none",
+        "usageAgeYears": "under1",
+        "hasCompleteness": true,
+        "kind": "ชีทสรุป"
+      },
+      "sellerId": "stu-2",
+      "sellerName": "ณัฐธิดา วงศ์สุวรรณ",
+      "sellerSchool": "โรงเรียนพิชัย (ม.6/1)",
+      "sellerContact": "ห้อง 601 · Line: natthida.w",
+      "status": "available",
+      "createdAt": "2026-11-16"
+    }
+  ],
+  "orders": [],
+  "lendingBooks": [
+    {
+      "id": "lend-201",
+      "title": "ตะลุยโจทย์คณิตศาสตร์ ระดับ ม.ต้น–ม.ปลาย (เล่ม 1)",
+      "subject": "คณิตศาสตร์",
+      "level": "ม.ต้น",
+      "description": "เปิดให้น้อง ๆ ยืมไปฝึกทำโจทย์ฟรี (ขอความกรุณาใช้ดินสอหรือเขียนลงสมุดทดแทน) หรือแลกกับหนังสือวิทยาศาสตร์ ม.ปลาย",
+      "conditionLabel": "สภาพดีมาก (90%)",
+      "imageUrl": "/src/assets/images/book_math_calculus_1794906289445.jpg",
+      "mode": "both",
+      "preferredExchangeTopic": "หนังสือเคมี หรือ ชีววิทยา ม.5",
+      "maxLoanDays": 14,
+      "ownerId": "stu-2",
+      "ownerName": "ณัฐธิดา วงศ์สุวรรณ",
+      "ownerGrade": "ม.6/1",
+      "ownerSchool": "โรงเรียนพิชัย",
+      "ownerContact": "ห้อง 601 · Line: natthida.w",
+      "availability": "available",
+      "createdAt": "2026-11-07"
+    },
+    {
+      "id": "lend-202",
+      "title": "ฟิสิกส์พื้นฐาน: กลศาสตร์และไฟฟ้ากระแสตรง",
+      "subject": "ฟิสิกส์",
+      "level": "ม.ปลาย",
+      "description": "หนังสืออ้างอิงพร้อมตัวอย่างโจทย์และแผนภาพวงจรไฟฟ้า ให้ยืมอ่านเตรียมสอบกลางภาคสูงสุด 30 วัน",
+      "conditionLabel": "สภาพดีเยี่ยม (95%)",
+      "imageUrl": "/src/assets/images/book_science_physics_1794906290811.jpg",
+      "mode": "lend",
+      "maxLoanDays": 30,
+      "ownerId": "stu-1",
+      "ownerName": "ปภาวิน พิชัยรักษ์",
+      "ownerGrade": "ม.5/2",
+      "ownerSchool": "โรงเรียนพิชัย",
+      "ownerContact": "ห้อง 502 · Line: papawin.stu",
+      "availability": "lent_out",
+      "createdAt": "2026-10-30"
+    },
+    {
+      "id": "lend-203",
+      "title": "คู่มือคำศัพท์และไวยากรณ์ภาษาอังกฤษเตรียมสอบ TGAT",
+      "subject": "ภาษาอังกฤษ",
+      "level": "เตรียมสอบเข้ามหาวิทยาลัย",
+      "description": "อยากแลกเปลี่ยนอ่านกับหนังสือสังคมศึกษา หรือภาษาไทยเตรียมสอบ A-Level เป็นระยะเวลา 30 วัน",
+      "conditionLabel": "สภาพดี (82%)",
+      "imageUrl": "/src/assets/images/book_english_vocab_1794906291129.jpg",
+      "mode": "exchange",
+      "preferredExchangeTopic": "สังคมศึกษา หรือ ภาษาไทย A-Level",
+      "maxLoanDays": 30,
+      "ownerId": "stu-3",
+      "ownerName": "ธนกฤต ศรีสวัสดิ์",
+      "ownerGrade": "ม.4/3",
+      "ownerSchool": "โรงเรียนพิชัย",
+      "ownerContact": "ห้อง 403 · Line: thanakrit.s",
+      "availability": "available",
+      "createdAt": "2026-11-11"
+    }
+  ],
+  "lendingTransactions": [
+    {
+      "id": "tx-301",
+      "bookId": "lend-202",
+      "bookTitle": "ฟิสิกส์พื้นฐาน: กลศาสตร์และไฟฟ้ากระแสตรง",
+      "transactionType": "borrow",
+      "lenderId": "stu-1",
+      "lenderName": "ปภาวิน พิชัยรักษ์",
+      "lenderContact": "ห้อง 502 · Line: papawin.stu",
+      "borrowerId": "stu-3",
+      "borrowerName": "ธนกฤต ศรีสวัสดิ์",
+      "borrowerGrade": "ม.4/3",
+      "borrowerContact": "ห้อง 403 · Line: thanakrit.s",
+      "loanDays": 14,
+      "startDate": "2026-11-08",
+      "dueDate": "2026-11-22",
+      "status": "active",
+      "notes": "ยืมทบทวนบทเรื่องแรงและการเคลื่อนที่แนวตรง",
+      "createdAt": "2026-11-08"
+    },
+    {
+      "id": "tx-302",
+      "bookId": "lend-201",
+      "bookTitle": "เคมีอินทรีย์และการคำนวณปริมาณสารสัมพันธ์ (เล่มสรุป)",
+      "transactionType": "borrow",
+      "lenderId": "stu-2",
+      "lenderName": "ณัฐธิดา วงศ์สุวรรณ",
+      "lenderContact": "ห้อง 601 · Line: natthida.w",
+      "borrowerId": "stu-1",
+      "borrowerName": "ปภาวิน พิชัยรักษ์",
+      "borrowerGrade": "ม.5/2",
+      "borrowerContact": "ห้อง 502 · Line: papawin.stu",
+      "loanDays": 7,
+      "startDate": "2026-11-07",
+      "dueDate": "2026-11-14",
+      "status": "overdue",
+      "notes": "ขอยืมอ่านก่อนสอบเก็บคะแนนเคมี",
+      "createdAt": "2026-11-07"
+    }
+  ],
+  "knowledgeResources": [
+    {
+      "id": "kn-401",
+      "title": "สรุปโครงสร้างเซลล์พืช-เซลล์สัตว์ และกระบวนการแบ่งเซลล์",
+      "subject": "ชีววิทยา",
+      "level": "ม.ปลาย",
+      "format": "Markdown/Note",
+      "summary": "สรุปหน้าที่ของออร์แกเนลล์สำคัญ (Nucleus, Mitochondria, Chloroplast, Golgi Body) เปรียบเทียบ Mitosis กับ Meiosis และสมการสังเคราะห์ด้วยแสงแบบเข้าใจง่าย",
+      "contentBody": "# สรุปชีววิทยา ม.ปลาย: โครงสร้างเซลล์และการแบ่งเซลล์\n\n## 1. ออร์แกเนลล์สำคัญที่ออกสอบบ่อย\n- **Nucleus (นิวเคลียส)**: ศูนย์ควบคุมการทำงานของเซลล์และเก็บสารพันธุกรรม (DNA)\n- **Mitochondria (ไมโทคอนเดรีย)**: แหล่งสร้างพลังงาน ATP ผ่านการหายใจระดับเซลล์ (มีเยื่อหุ้ม 2 ชั้น)\n- **Ribosome (ไรโบโซม)**: สังเคราะห์โปรตีน (ไม่มีเยื่อหุ้ม พบได้ทั้งโปรคาริโอตและยูคาริโอต)\n- **Chloroplast (คลอโรพลาสต์)**: พบในเซลล์พืชและสาหร่าย ทำหน้าที่สังเคราะห์ด้วยแสง\n- **Golgi Apparatus (กอลจิบอดี)**: บรรจุและดัดแปลงโปรตีนเพื่อส่งออกนอกเซลล์\n\n## 2. เปรียบเทียบการแบ่งเซลล์\n| หัวข้อ | Mitosis | Meiosis |\n|---|---|---|\n| จุดประสงค์ | เพิ่มจำนวนเซลล์ร่างกาย / ซ่อมแซม | สร้างเซลล์สืบพันธุ์ |\n| จำนวนเซลล์ลูก | 2 เซลล์ (2n -> 2n) | 4 เซลล์ (2n -> n) |\n| Crossing Over | ไม่เกิด | เกิดในระยะ Prophase I |\n\n## 3. สมการการสังเคราะห์ด้วยแสง\n6CO2 + 12H2O --(แสง + คลอโรฟิลล์)--> C6H12O6 + 6O2 + 6H2O\n",
+      "fileName": "biology-cell-mitosis-summary.md",
+      "fileSizeLabel": "4.2 KB · Markdown",
+      "imageUrl": "/src/assets/images/notes_biology_summary_1794906291530.jpg",
+      "authorId": "stu-2",
+      "authorName": "ณัฐธิดา วงศ์สุวรรณ",
+      "authorGrade": "ม.6/1",
+      "authorSchool": "โรงเรียนพิชัย",
+      "downloads": 48,
+      "helpfulCount": 31,
+      "createdAt": "2026-11-10"
+    },
+    {
+      "id": "kn-402",
+      "title": "รวมสูตรแคลคูลัสเบื้องต้น: ลิมิต อนุพันธ์ และอินทิกรัล ม.6",
+      "subject": "คณิตศาสตร์",
+      "level": "ม.ปลาย",
+      "format": "Markdown/Note",
+      "summary": "แผ่นสรุปสูตรลัดการหาลิมิต กฎลูกโซ่ของอนุพันธ์ ค่าสูงสุด-ต่ำสุดสัมพัทธ์ และสูตรอินทิกรัลไม่จำกัดเขตสำหรับทบทวนโค้งสุดท้าย",
+      "contentBody": "# รวมสูตรแคลคูลัสเบื้องต้น ม.6\n\n## 1. การหาลิมิต (Limits)\n- หากแทนค่าแล้วได้ 0/0 ให้แยกตัวประกอบ, คูณคอนจูเกต หรือใช้กฎของโลปิตาล (L'Hopital's Rule)\n- lim (x -> a) [f(x) / g(x)] = lim (x -> a) [f'(x) / g'(x)] เมื่อได้รูป 0/0 หรือ inf/inf\n\n## 2. สูตรอนุพันธ์ (Derivatives)\n- d/dx (c) = 0\n- d/dx (x^n) = n * x^(n-1)\n- กฎผลคูณ: (uv)' = u'v + uv'\n- กฎผลหาร: (u/v)' = (u'v - uv') / v^2\n- กฎลูกโซ่: dy/dx = (dy/du) * (du/dx)\n\n## 3. ปริพันธ์ (Integration)\n- int (x^n) dx = x^(n+1) / (n+1) + C  (เมื่อ n != -1)\n- พื้นที่ปิดล้อมด้วยเส้นโค้ง f(x) จาก a ถึง b = int_a^b f(x) dx\n",
+      "fileName": "math-calculus-formulas.md",
+      "fileSizeLabel": "3.6 KB · Markdown",
+      "imageUrl": "/src/assets/images/book_math_calculus_1794906289445.jpg",
+      "authorId": "stu-1",
+      "authorName": "ปภาวิน พิชัยรักษ์",
+      "authorGrade": "ม.5/2",
+      "authorSchool": "โรงเรียนพิชัย",
+      "downloads": 64,
+      "helpfulCount": 42,
+      "createdAt": "2026-11-12"
+    },
+    {
+      "id": "kn-403",
+      "title": "สรุปสมการการเคลื่อนที่ กฎของนิวตัน และวงจรไฟฟ้ากระแสตรง",
+      "subject": "ฟิสิกส์",
+      "level": "ม.ปลาย",
+      "format": "Markdown/Note",
+      "summary": "สรุป 5 สูตรสุวัฒน์ (SUVAT) การแตกแรง Free Body Diagram บนพื้นเอียง และวิธีคิดความต้านทานรวมแบบอนุกรม-ขนาน",
+      "contentBody": "# สรุปฟิสิกส์: กลศาสตร์ & ไฟฟ้ากระแสตรง\n\n## 1. 5 สูตรการเคลื่อนที่แนวตรง (ความเร่งคงที่)\n1. v = u + at\n2. s = ((u + v) / 2) * t\n3. s = ut + (1/2)at^2\n4. s = vt - (1/2)at^2\n5. v^2 = u^2 + 2as\n\n## 2. กฎการเคลื่อนที่ของนิวตัน\n- กฎข้อที่ 1: Sigma F = 0 (วัตถุหยุดนิ่งหรือเคลื่อนที่ด้วยความเร็วคงที่)\n- กฎข้อที่ 2: Sigma F = ma\n- แรงเสียดทาน: f = mu * N\n\n## 3. กฎของโอห์มและวงจรไฟฟ้า\n- V = IR\n- ต่ออนุกรม: R_รวม = R1 + R2 + ... (กระแส I เท่ากัน)\n- ต่อขนาน: 1/R_รวม = 1/R1 + 1/R2 + ... (ความต่างศักย์ V เท่ากัน)\n",
+      "fileName": "physics-mechanics-circuits.md",
+      "fileSizeLabel": "3.1 KB · Markdown",
+      "imageUrl": "/src/assets/images/book_science_physics_1794906290811.jpg",
+      "authorId": "stu-1",
+      "authorName": "ปภาวิน พิชัยรักษ์",
+      "authorGrade": "ม.5/2",
+      "authorSchool": "โรงเรียนพิชัย",
+      "downloads": 39,
+      "helpfulCount": 27,
+      "createdAt": "2026-11-15"
+    }
+  ],
+  "students": [
+    {
+      "id": "stu-1",
+      "name": "ปภาวิน พิชัยรักษ์",
+      "studentCode": "std27031",
+      "grade": "ม.5/2",
+      "school": "โรงเรียนพิชัย",
+      "contact": "ห้อง 502 · Line: papawin.stu"
+    },
+    {
+      "id": "stu-2",
+      "name": "ณัฐธิดา วงศ์สุวรรณ",
+      "studentCode": "std26418",
+      "grade": "ม.6/1",
+      "school": "โรงเรียนพิชัย",
+      "contact": "ห้อง 601 · Line: natthida.w"
+    },
+    {
+      "id": "stu-3",
+      "name": "ธนกฤต ศรีสวัสดิ์",
+      "studentCode": "std28105",
+      "grade": "ม.4/3",
+      "school": "โรงเรียนพิชัย",
+      "contact": "ห้อง 403 · Line: thanakrit.s"
+    }
+  ]
+}
