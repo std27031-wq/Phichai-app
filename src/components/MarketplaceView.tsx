@@ -2,10 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Calculator,
   CheckCircle2,
+  Clock,
+  Inbox,
+  MapPin,
+  MessageSquare,
   Plus,
   Search,
+  Send,
   ShoppingBag,
   Trash2,
+  Wallet,
   X,
 } from 'lucide-react';
 import type {
@@ -14,8 +20,10 @@ import type {
   MarketItem,
   MarketOrder,
   MarkingLevel,
+  OrderChatMessage,
   PhysicalCondition,
   ResourceKind,
+  SellerNotification,
   StudentProfile,
   SubjectCategory,
   UsageAge,
@@ -31,9 +39,14 @@ import { ResilientImage } from './ResilientImage.tsx';
 interface MarketplaceViewProps {
   items: MarketItem[];
   orders: MarketOrder[];
+  sellerNotifications: SellerNotification[];
+  orderMessages: OrderChatMessage[];
   currentStudent: StudentProfile;
   cartIds: string[];
+  initialSubView?: 'catalog' | 'seller_inbox';
+  onSubViewChange?: (view: 'catalog' | 'seller_inbox') => void;
   onToggleCart: (itemId: string) => void;
+  onAddToCart: (itemId: string) => void;
   onClearCart: () => void;
   onCreateItem: (payload: {
     title: string;
@@ -47,11 +60,18 @@ interface MarketplaceViewProps {
   }) => Promise<void>;
   onCheckout: (payload: {
     itemIds: string[];
+    buyerId: string;
     buyerName: string;
     buyerContact: string;
     deliveryMethod: 'pickup' | 'parcel';
     deliveryNote: string;
   }) => Promise<MarketOrder>;
+  onUpdateSellerNotification: (
+    notifId: string,
+    action: 'acknowledge' | 'set_meetup' | 'complete' | 'mark_read',
+    meetupLocation?: string
+  ) => Promise<void>;
+  onOpenChat: (notification: SellerNotification) => void;
   openCreateInitially?: boolean;
   onConsumeOpenCreate?: () => void;
 }
@@ -87,15 +107,26 @@ const KINDS: ResourceKind[] = [
 export function MarketplaceView({
   items,
   orders,
+  sellerNotifications,
+  orderMessages,
   currentStudent,
   cartIds,
+  initialSubView = 'catalog',
+  onSubViewChange,
   onToggleCart,
+  onAddToCart,
   onClearCart,
   onCreateItem,
   onCheckout,
+  onUpdateSellerNotification,
+  onOpenChat,
   openCreateInitially = false,
   onConsumeOpenCreate,
 }: MarketplaceViewProps) {
+  const [subView, setSubView] = useState<'catalog' | 'seller_inbox'>(initialSubView);
+  const [inboxScope, setInboxScope] = useState<'mine' | 'all'>('mine');
+  const [busyNotifId, setBusyNotifId] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<'ทั้งหมด' | SubjectCategory>('ทั้งหมด');
   const [selectedLevel, setSelectedLevel] = useState<'ทั้งหมด' | EducationLevel>('ทั้งหมด');
@@ -131,11 +162,25 @@ export function MarketplaceView({
   const [checkoutError, setCheckoutError] = useState('');
 
   useEffect(() => {
+    setSubView(initialSubView);
+  }, [initialSubView]);
+
+  useEffect(() => {
+    setBuyerName(currentStudent.name);
+    setBuyerContact(currentStudent.contact);
+  }, [currentStudent.id, currentStudent.name, currentStudent.contact]);
+
+  useEffect(() => {
     if (openCreateInitially) {
       setIsCreateOpen(true);
       onConsumeOpenCreate?.();
     }
   }, [openCreateInitially, onConsumeOpenCreate]);
+
+  const switchSubView = (next: 'catalog' | 'seller_inbox') => {
+    setSubView(next);
+    onSubViewChange?.(next);
+  };
 
   const evalInput: ConditionEvaluationInput = useMemo(
     () => ({
@@ -217,6 +262,7 @@ export function MarketplaceView({
     try {
       const order = await onCheckout({
         itemIds: cartItems.map((i) => i.id),
+        buyerId: currentStudent.id,
         buyerName: buyerName.trim() || currentStudent.name,
         buyerContact: buyerContact.trim() || currentStudent.contact,
         deliveryMethod,
@@ -230,6 +276,37 @@ export function MarketplaceView({
       setIsSubmitting(false);
     }
   };
+
+  const handleDirectBuy = (itemId: string) => {
+    onAddToCart(itemId);
+    setLatestOrder(null);
+    setIsCartOpen(true);
+  };
+
+  const mySellerNotifications = useMemo(
+    () => sellerNotifications.filter((n) => n.sellerId === currentStudent.id),
+    [sellerNotifications, currentStudent.id]
+  );
+
+  const unreadMySellerCount = mySellerNotifications.filter((n) => n.status === 'new').length;
+
+  const displayedSellerNotifications =
+    inboxScope === 'mine' ? mySellerNotifications : sellerNotifications;
+
+  const handleSellerAction = async (
+    notifId: string,
+    action: 'acknowledge' | 'set_meetup' | 'complete' | 'mark_read'
+  ) => {
+    setBusyNotifId(notifId);
+    try {
+      await onUpdateSellerNotification(notifId, action);
+    } finally {
+      setBusyNotifId(null);
+    }
+  };
+
+  const countChatMessages = (notifId: string) =>
+    orderMessages.filter((m) => m.notificationId === notifId && m.senderRole !== 'system').length;
 
   return (
     <section className="space-y-8">
@@ -246,6 +323,35 @@ export function MarketplaceView({
         </div>
 
         <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+            <button
+              type="button"
+              onClick={() => switchSubView('catalog')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                subView === 'catalog'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              คลังหนังสือ
+            </button>
+            <button
+              type="button"
+              onClick={() => switchSubView('seller_inbox')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                subView === 'seller_inbox'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Inbox className="w-3.5 h-3.5" />
+              <span>คำสั่งซื้อถึงผู้ขาย</span>
+              <span className="font-mono-tabular text-blue-700 font-semibold">
+                ({unreadMySellerCount > 0 ? `${unreadMySellerCount} ใหม่` : mySellerNotifications.length})
+              </span>
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => setIsEvaluatorOpen((v) => !v)}
@@ -446,7 +552,191 @@ export function MarketplaceView({
         </div>
       )}
 
+      {/* Sub-view: Seller Orders Inbox */}
+      {subView === 'seller_inbox' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-slate-900">
+                ข้อมูลคำสั่งซื้อที่ส่งถึงผู้ขาย
+              </h3>
+              <p className="text-xs text-slate-600">
+                เมื่อผู้ซื้อกดยืนยันสั่งซื้อ ระบบจะส่งข้อมูลผู้ซื้อ ช่องทางติดต่อ และวิธีรับหนังสือมาที่กล่องของผู้ขายทันที
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg self-start">
+              <button
+                type="button"
+                onClick={() => setInboxScope('mine')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap cursor-pointer ${
+                  inboxScope === 'mine' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+                }`}
+              >
+                ของฉัน ({mySellerNotifications.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setInboxScope('all')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap cursor-pointer ${
+                  inboxScope === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+                }`}
+              >
+                ผู้ขายทั้งหมด ({sellerNotifications.length})
+              </button>
+            </div>
+          </div>
+
+          {displayedSellerNotifications.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center space-y-2">
+              <p className="text-sm font-medium text-slate-900">
+                {inboxScope === 'mine'
+                  ? `ยังไม่มีคำสั่งซื้อเข้าถึงบัญชีผู้ขาย "${currentStudent.name}"`
+                  : 'ยังไม่มีรายการสั่งซื้อในระบบ'}
+              </p>
+              <p className="text-xs text-slate-500">
+                เมื่อมีนักเรียนกดสั่งซื้อหนังสือที่ลงประกาศไว้ ข้อมูลผู้ซื้อและช่องทางติดต่อจะถูกส่งมาแสดงที่นี่ทันที
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
+                      <th className="py-3 px-4">คำสั่งซื้อ / หนังสือ</th>
+                      <th className="py-3 px-4">ผู้ขายที่รับข้อมูล</th>
+                      <th className="py-3 px-4">ข้อมูลผู้ซื้อ & ช่องทางติดต่อ</th>
+                      <th className="py-3 px-4">วิธีรับ & หมายเหตุ</th>
+                      <th className="py-3 px-4">ราคา</th>
+                      <th className="py-3 px-4">สถานะผู้ขาย</th>
+                      <th className="py-3 px-4 text-right">การจัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {displayedSellerNotifications.map((notif) => {
+                      const chatCount = countChatMessages(notif.id);
+                      const isPaidCod = notif.paymentStatus === 'paid_cod';
+                      return (
+                        <tr key={notif.id} className="hover:bg-slate-50/70">
+                          <td className="py-3.5 px-4 max-w-[230px]">
+                            <div className="font-mono-tabular text-slate-500">
+                              {notif.orderId} · {notif.createdAt}
+                            </div>
+                            <div className="font-medium text-slate-900 mt-0.5">
+                              {notif.itemTitle}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="font-medium text-slate-900">{notif.sellerName}</div>
+                            <div className="text-slate-500">{notif.sellerContact}</div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="font-medium text-blue-800">{notif.buyerName}</div>
+                            <div className="text-slate-600">{notif.buyerContact}</div>
+                          </td>
+                          <td className="py-3.5 px-4 max-w-[240px]">
+                            <div className="font-medium text-slate-800">
+                              {notif.deliveryMethod === 'pickup'
+                                ? 'นัดรับ & ชำระปลายทางที่โรงเรียน'
+                                : 'จัดส่งพัสดุ'}
+                            </div>
+                            <div className="text-slate-600 truncate">
+                              {notif.meetupLocation
+                                ? `จุดนัดรับ: ${notif.meetupLocation}`
+                                : notif.deliveryNote || 'ยังไม่ตกลงจุดนัดรับ'}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="font-mono-tabular font-semibold text-slate-900">
+                              ฿{notif.sellingPrice}
+                            </div>
+                            <div
+                              className={`text-[11px] font-medium ${
+                                isPaidCod ? 'text-emerald-700' : 'text-amber-700'
+                              }`}
+                            >
+                              {isPaidCod ? 'ชำระปลายทางแล้ว' : 'รอชำระปลายทางที่ รร.'}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {notif.status === 'new' && (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-blue-700">
+                                <Send className="w-3.5 h-3.5" />
+                                <span>ส่งถึงผู้ขายแล้ว (ใหม่)</span>
+                              </span>
+                            )}
+                            {(notif.status === 'acknowledged' || notif.status === 'negotiating') && (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-amber-700">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>กำลังนัดสถานที่รับหนังสือ</span>
+                              </span>
+                            )}
+                            {notif.status === 'ready_meetup' && (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-blue-700">
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>ตกลงสถานที่นัดรับแล้ว</span>
+                              </span>
+                            )}
+                            {notif.status === 'completed' && (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-emerald-700">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>ส่งมอบและชำระปลายทางแล้ว</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => onOpenChat(notif)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-md cursor-pointer"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 text-blue-700" />
+                                <span>
+                                  แชทตกลงสถานที่{chatCount > 0 ? ` (${chatCount})` : ''}
+                                </span>
+                              </button>
+
+                              {notif.status === 'new' && (
+                                <button
+                                  type="button"
+                                  disabled={busyNotifId === notif.id}
+                                  onClick={() => handleSellerAction(notif.id, 'acknowledge')}
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-md cursor-pointer disabled:opacity-50"
+                                >
+                                  รับทราบ
+                                </button>
+                              )}
+
+                              {(notif.status === 'acknowledged' ||
+                                notif.status === 'negotiating' ||
+                                notif.status === 'ready_meetup') && (
+                                <button
+                                  type="button"
+                                  disabled={busyNotifId === notif.id}
+                                  onClick={() => handleSellerAction(notif.id, 'complete')}
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-700 hover:bg-emerald-800 rounded-md cursor-pointer disabled:opacity-50"
+                                >
+                                  ยืนยันส่งมอบ & รับเงิน
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Search and Filter Controls */}
+      {subView === 'catalog' && (
+      <>
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           <div className="relative flex-1 max-w-md">
@@ -595,14 +885,14 @@ export function MarketplaceView({
                       {!isSold && (
                         <button
                           type="button"
-                          onClick={() => onToggleCart(item.id)}
+                          onClick={() => handleDirectBuy(item.id)}
                           className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                             inCart
                               ? 'bg-emerald-700 text-white hover:bg-emerald-800'
                               : 'bg-blue-700 text-white hover:bg-blue-800'
                           }`}
                         >
-                          {inCart ? 'อยู่ในรายการแล้ว' : 'เลือกซื้อ'}
+                          {inCart ? 'ดำเนินการสั่งซื้อ' : 'สั่งซื้อ'}
                         </button>
                       )}
                     </div>
@@ -614,33 +904,80 @@ export function MarketplaceView({
         </div>
       )}
 
-      {/* Recent Completed Orders Summary */}
+      {/* Recent Completed Orders Summary + Buyer Meetup Chat */}
       {orders.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-          <h3 className="text-sm font-semibold text-slate-900">ประวัติการสั่งซื้อล่าสุด</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">
+              ประวัติการสั่งซื้อ & แชทตกลงจุดนัดรับชำระปลายทางที่โรงเรียน
+            </h3>
+            <button
+              type="button"
+              onClick={() => switchSubView('seller_inbox')}
+              className="text-xs font-medium text-blue-700 hover:underline cursor-pointer"
+            >
+              ดูสถานะฝั่งผู้ขาย
+            </button>
+          </div>
           <div className="divide-y divide-slate-100">
-            {orders.slice(0, 3).map((ord) => (
-              <div
-                key={ord.id}
-                className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
-              >
-                <div className="space-y-0.5">
-                  <div className="font-medium text-slate-900">
-                    คำสั่งซื้อ <span className="font-mono-tabular">{ord.id}</span> · ผู้รับ {ord.buyerName}
+            {orders.slice(0, 5).map((ord) => {
+              const linkedNotifs = sellerNotifications.filter((n) => n.orderId === ord.id);
+              return (
+                <div key={ord.id} className="py-3 space-y-2 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <div className="font-medium text-slate-900">
+                        คำสั่งซื้อ <span className="font-mono-tabular">{ord.id}</span> · ผู้ซื้อ{' '}
+                        {ord.buyerName} ({ord.buyerContact})
+                      </div>
+                      <div className="text-slate-500">
+                        {ord.itemsSummary
+                          .map(
+                            (i) =>
+                              `${i.title}${i.sellerName ? ` [ผู้ขาย: ${i.sellerName}]` : ''}`
+                          )
+                          .join(', ')}{' '}
+                        ·{' '}
+                        {ord.deliveryMethod === 'pickup'
+                          ? 'นัดรับ & ชำระปลายทางที่โรงเรียน'
+                          : 'จัดส่งพัสดุ'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0 font-mono-tabular">
+                      <span className="text-emerald-700">ประหยัด ฿{ord.totalSaved}</span>
+                      <span className="font-semibold text-slate-900">รวม ฿{ord.totalAmount}</span>
+                    </div>
                   </div>
-                  <div className="text-slate-500">
-                    {ord.itemsSummary.map((i) => i.title).join(', ')} ·{' '}
-                    {ord.deliveryMethod === 'pickup' ? 'นัดรับที่โรงเรียน' : 'จัดส่งพัสดุ'}
-                  </div>
+
+                  {linkedNotifs.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {linkedNotifs.map((notif) => {
+                        const msgCount = countChatMessages(notif.id);
+                        return (
+                          <button
+                            key={notif.id}
+                            type="button"
+                            onClick={() => onOpenChat(notif)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-800 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-md cursor-pointer"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>
+                              แชทกับ {notif.sellerName}
+                              {notif.meetupLocation ? ` · ${notif.meetupLocation}` : ''}
+                              {msgCount > 0 ? ` (${msgCount})` : ''}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-4 shrink-0 font-mono-tabular">
-                  <span className="text-emerald-700">ประหยัด ฿{ord.totalSaved}</span>
-                  <span className="font-semibold text-slate-900">รวม ฿{ord.totalAmount}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Item Detail + Price Rubric Modal */}
@@ -1062,18 +1399,49 @@ export function MarketplaceView({
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 space-y-3">
                   <div className="flex items-center gap-2 text-emerald-800 font-semibold">
                     <CheckCircle2 className="w-5 h-5" />
-                    <span>ยืนยันคำสั่งซื้อสำเร็จ ({latestOrder.id})</span>
+                    <span>ส่งข้อมูลการสั่งซื้อไปยังผู้ขายแล้ว ({latestOrder.id})</span>
                   </div>
                   <p className="text-xs text-emerald-900 leading-relaxed">
-                    ระบบบันทึกการจองซื้อเรียบร้อยแล้ว ผู้ขายจะได้รับการแจ้งเตือนเพื่อเตรียมส่งมอบสื่อการเรียนให้คุณ
+                    ระบบได้ส่งข้อมูลผู้ซื้อ ({latestOrder.buyerName} · {latestOrder.buyerContact}) ไปยังผู้ขายแล้ว กรุณาเปิดห้องแชทเพื่อตกลงสถานที่รับหนังสือและชำระเงินปลายทางที่โรงเรียน
                   </p>
+                  <div className="bg-white/85 border border-emerald-200 rounded-lg p-3 space-y-2 text-xs text-emerald-950">
+                    <div className="font-medium text-emerald-900">แชทตกลงจุดนัดรับกับผู้ขาย:</div>
+                    {sellerNotifications
+                      .filter((n) => n.orderId === latestOrder.id)
+                      .map((notif) => (
+                        <div
+                          key={notif.id}
+                          className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-100 first:border-t-0 first:pt-0"
+                        >
+                          <div className="truncate">
+                            <div className="font-medium text-slate-900 truncate">
+                              {notif.itemTitle}
+                            </div>
+                            <div className="text-[11px] text-slate-600">
+                              ผู้ขาย: {notif.sellerName} · ฿{notif.sellingPrice}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCartOpen(false);
+                              onOpenChat(notif);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-md whitespace-nowrap shrink-0 cursor-pointer"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>เปิดแชทกับผู้ขาย</span>
+                          </button>
+                        </div>
+                      ))}
+                  </div>
                   <div className="border-t border-emerald-200 pt-3 space-y-1 text-xs text-emerald-900">
                     <div className="flex justify-between">
-                      <span>ผู้รับ:</span>
-                      <span className="font-medium">{latestOrder.buyerName}</span>
+                      <span>การชำระเงิน:</span>
+                      <span className="font-medium">ชำระเงินปลายทางที่โรงเรียน (COD)</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>ยอดชำระสุทธิ:</span>
+                      <span>ยอดชำระเมื่อรับหนังสือ:</span>
                       <span className="font-mono-tabular font-semibold">
                         ฿{latestOrder.totalAmount}
                       </span>
@@ -1085,12 +1453,23 @@ export function MarketplaceView({
                       </span>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCartOpen(false);
+                      setInboxScope('all');
+                      switchSubView('seller_inbox');
+                    }}
+                    className="w-full py-2 text-xs font-medium text-emerald-900 bg-white border border-emerald-300 hover:bg-emerald-100 rounded-lg cursor-pointer"
+                  >
+                    ดูข้อมูลที่ส่งไปในกล่องผู้ขาย
+                  </button>
                 </div>
               ) : cartItems.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <p className="text-sm font-medium text-slate-900">ยังไม่มีรายการหนังสือที่เลือก</p>
                   <p className="text-xs text-slate-500">
-                    กดปุ่ม "เลือกซื้อ" บนหนังสือที่ต้องการเพื่อเพิ่มลงในรายการ
+                    กดปุ่ม "สั่งซื้อ" บนหนังสือที่ต้องการเพื่อส่งคำสั่งซื้อและนัดรับกับผู้ขาย
                   </p>
                 </div>
               ) : (
@@ -1122,7 +1501,7 @@ export function MarketplaceView({
                     ))}
                   </div>
 
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-1.5 text-sm">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-sm">
                     <div className="flex justify-between text-slate-600">
                       <span>ประหยัดจากราคาปกทั้งหมด</span>
                       <span className="font-mono-tabular font-medium text-emerald-700">
@@ -1130,8 +1509,12 @@ export function MarketplaceView({
                       </span>
                     </div>
                     <div className="flex justify-between font-semibold text-slate-900 text-base pt-1 border-t border-slate-200">
-                      <span>ยอดรวมสุทธิ</span>
+                      <span>ยอดชำระปลายทางที่ รร.</span>
                       <span className="font-mono-tabular">฿{cartTotal}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-blue-800 pt-1">
+                      <Wallet className="w-3.5 h-3.5 shrink-0" />
+                      <span>ชำระเงินปลายทางกับผู้ขายเมื่อตรวจรับหนังสือที่โรงเรียน</span>
                     </div>
                   </div>
 
@@ -1162,7 +1545,7 @@ export function MarketplaceView({
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">
-                        วิธีรับสื่อการเรียน
+                        วิธีรับสื่อการเรียน & การชำระเงิน
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <button
@@ -1174,7 +1557,7 @@ export function MarketplaceView({
                               : 'border-slate-300 bg-white text-slate-700'
                           }`}
                         >
-                          นัดรับที่โรงเรียน
+                          นัดรับ & ชำระปลายทางที่ รร.
                         </button>
                         <button
                           type="button"
@@ -1185,19 +1568,19 @@ export function MarketplaceView({
                               : 'border-slate-300 bg-white text-slate-700'
                           }`}
                         >
-                          จัดส่งพัสดุ
+                          จัดส่ง / นัดรับตามตกลง
                         </button>
                       </div>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">
-                        หมายเหตุเพิ่มเติม (จุดนัดรับ / ที่อยู่)
+                        จุดนัดรับเบื้องต้นที่โรงเรียน (แชทปรับเปลี่ยนภายหลังได้)
                       </label>
                       <input
                         type="text"
                         value={deliveryNote}
                         onChange={(e) => setDeliveryNote(e.target.value)}
-                        placeholder="เช่น นัดรับหน้าห้องสมุดพักกลางวัน"
+                        placeholder="เช่น หน้าห้องสมุดโรงเรียน พักกลางวัน 12:20 น."
                         className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
                       />
                     </div>
@@ -1209,7 +1592,9 @@ export function MarketplaceView({
                       disabled={isSubmitting}
                       className="w-full py-2.5 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg disabled:opacity-50 cursor-pointer"
                     >
-                      {isSubmitting ? 'กำลังดำเนินการ...' : `ยืนยันการสั่งซื้อ (฿${cartTotal})`}
+                      {isSubmitting
+                        ? 'กำลังส่งข้อมูลไปยังผู้ขาย...'
+                        : `ยืนยันสั่งซื้อ & เปิดแชทนัดรับที่ รร. (฿${cartTotal})`}
                     </button>
                   </form>
                 </>

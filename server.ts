@@ -1,7 +1,10 @@
 import express from 'express';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WebSocket, WebSocketServer } from 'ws';
 import type {
   AppBootstrapData,
   ConditionEvaluationInput,
@@ -10,9 +13,16 @@ import type {
   LendingTransaction,
   MarketItem,
   MarketOrder,
+  OrderChatMessage,
+  SellerNotification,
   StudentProfile,
 } from './src/types.ts';
 import { evaluateResourcePrice } from './src/utils/priceEvaluator.ts';
+
+interface PersistedStore extends AppBootstrapData {
+  credentials?: Record<string, string>;
+  sessions?: Record<string, string>;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +30,34 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const STORE_PATH = path.join(DATA_DIR, 'store.json');
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, expectedHex] = stored.split(':');
+  if (!salt || !expectedHex) return false;
+  const actualBuf = crypto.scryptSync(password, salt, 64);
+  const expectedBuf = Buffer.from(expectedHex, 'hex');
+  if (actualBuf.length !== expectedBuf.length) return false;
+  return crypto.timingSafeEqual(actualBuf, expectedBuf);
+}
+
+function sanitizeBootstrap(store: PersistedStore): AppBootstrapData {
+  return {
+    marketItems: store.marketItems,
+    orders: store.orders,
+    sellerNotifications: store.sellerNotifications,
+    orderMessages: store.orderMessages,
+    lendingBooks: store.lendingBooks,
+    lendingTransactions: store.lendingTransactions,
+    knowledgeResources: store.knowledgeResources,
+    students: store.students,
+  };
+}
 
 function ensureStorageDirs() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -405,30 +443,62 @@ function buildSeedData(): AppBootstrapData {
   ];
 
   const orders: MarketOrder[] = [];
+  const sellerNotifications: SellerNotification[] = [];
+  const orderMessages: OrderChatMessage[] = [];
+  const credentials: Record<string, string> = {
+    'stu-1': hashPassword('1234'),
+    'stu-2': hashPassword('1234'),
+    'stu-3': hashPassword('1234'),
+  };
+  const sessions: Record<string, string> = {};
 
   return {
     marketItems,
     orders,
+    sellerNotifications,
+    orderMessages,
     lendingBooks,
     lendingTransactions,
     knowledgeResources,
     students,
-  };
+    credentials,
+    sessions,
+  } as PersistedStore;
 }
 
-function loadStore(): AppBootstrapData {
+function loadStore(): PersistedStore {
   ensureStorageDirs();
   if (!fs.existsSync(STORE_PATH)) {
-    const seeded = buildSeedData();
+    const seeded = buildSeedData() as PersistedStore;
     fs.writeFileSync(STORE_PATH, JSON.stringify(seeded, null, 2), 'utf8');
     return seeded;
   }
   const raw = fs.readFileSync(STORE_PATH, 'utf8');
-  const data = JSON.parse(raw) as AppBootstrapData;
+  const data = JSON.parse(raw) as PersistedStore;
+  let mutated = false;
+
+  if (!Array.isArray(data.sellerNotifications)) {
+    data.sellerNotifications = [];
+    mutated = true;
+  }
+  if (!Array.isArray(data.orderMessages)) {
+    data.orderMessages = [];
+    mutated = true;
+  }
+  if (!data.credentials) {
+    data.credentials = {};
+    for (const s of data.students) {
+      data.credentials[s.id] = hashPassword('1234');
+    }
+    mutated = true;
+  }
+  if (!data.sessions) {
+    data.sessions = {};
+    mutated = true;
+  }
 
   // Auto-sync overdue status based on today's date
   const today = getTodayIso();
-  let mutated = false;
   for (const tx of data.lendingTransactions) {
     if (tx.status === 'active' && tx.dueDate < today) {
       tx.status = 'overdue';
@@ -441,7 +511,7 @@ function loadStore(): AppBootstrapData {
   return data;
 }
 
-function saveStore(data: AppBootstrapData) {
+function saveStore(data: PersistedStore) {
   ensureStorageDirs();
   const tmpPath = `${STORE_PATH}.tmp`;
   fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
@@ -452,9 +522,152 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '12mb' }));
 
+  const server = http.createServer(app);
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on('upgrade', (request, socket, head) => {
+    const pathname = (request.url || '').split('?')[0];
+    if (pathname === '/ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+  });
+
+  const broadcastWs = (payload: unknown) => {
+    const encoded = JSON.stringify(payload);
+    for (const client of wss.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(encoded);
+      }
+    }
+  };
+
   app.get('/api/bootstrap', (_req, res) => {
     const store = loadStore();
-    res.json(store);
+    res.json(sanitizeBootstrap(store));
+  });
+
+  // Auth: Register new student account
+  app.post('/api/auth/register', (req, res) => {
+    const store = loadStore();
+    const body = req.body as {
+      name: string;
+      studentCode: string;
+      password: string;
+      grade: string;
+      school: string;
+      contact: string;
+    };
+
+    const cleanName = body.name?.trim();
+    const cleanCode = body.studentCode?.trim().toLowerCase();
+    const password = body.password || '';
+
+    if (!cleanName || !cleanCode || password.length < 4) {
+      res.status(400).json({
+        error: 'กรุณากรอกชื่อ-นามสกุล ชื่อผู้ใช้/รหัสนักเรียน และรหัสผ่านอย่างน้อย 4 ตัวอักษร',
+      });
+      return;
+    }
+
+    const exists = store.students.some(
+      (s) => s.studentCode.toLowerCase() === cleanCode
+    );
+    if (exists) {
+      res.status(409).json({
+        error: 'รหัสนักเรียนหรือชื่อผู้ใช้นี้ถูกสมัครใช้งานแล้ว กรุณาเข้าสู่ระบบหรือใช้ชื่ออื่น',
+      });
+      return;
+    }
+
+    const newStudent: StudentProfile = {
+      id: `stu-${Date.now()}`,
+      name: cleanName,
+      studentCode: body.studentCode.trim(),
+      grade: body.grade?.trim() || 'ม.5',
+      school: body.school?.trim() || 'โรงเรียนพิชัย',
+      contact: body.contact?.trim() || 'ติดต่อผ่านแชทในระบบปันเรียน',
+    };
+
+    store.students.push(newStudent);
+    store.credentials = store.credentials || {};
+    store.credentials[newStudent.id] = hashPassword(password);
+
+    const token = crypto.randomBytes(24).toString('hex');
+    store.sessions = store.sessions || {};
+    store.sessions[token] = newStudent.id;
+
+    saveStore(store);
+    res.status(201).json({ token, student: newStudent });
+  });
+
+  // Auth: Sign in
+  app.post('/api/auth/login', (req, res) => {
+    const store = loadStore();
+    const body = req.body as {
+      studentCode?: string;
+      password?: string;
+      demoStudentId?: string;
+    };
+
+    let targetStudent: StudentProfile | undefined;
+
+    if (body.demoStudentId) {
+      targetStudent = store.students.find((s) => s.id === body.demoStudentId);
+      if (!targetStudent) {
+        res.status(404).json({ error: 'ไม่พบบัญชีตัวอย่างที่เลือก' });
+        return;
+      }
+    } else {
+      const code = body.studentCode?.trim().toLowerCase();
+      const password = body.password || '';
+      if (!code || !password) {
+        res.status(400).json({ error: 'กรุณากรอกรหัสนักเรียน/ชื่อผู้ใช้ และรหัสผ่าน' });
+        return;
+      }
+      targetStudent = store.students.find(
+        (s) => s.studentCode.toLowerCase() === code
+      );
+      const storedHash = targetStudent ? store.credentials?.[targetStudent.id] : undefined;
+      if (!targetStudent || !storedHash || !verifyPassword(password, storedHash)) {
+        res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+        return;
+      }
+    }
+
+    const token = crypto.randomBytes(24).toString('hex');
+    store.sessions = store.sessions || {};
+    store.sessions[token] = targetStudent.id;
+    saveStore(store);
+
+    res.json({ token, student: targetStudent });
+  });
+
+  // Auth: Current session
+  app.get('/api/auth/me', (req, res) => {
+    const store = loadStore();
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    const studentId = token ? store.sessions?.[token] : undefined;
+    const student = studentId ? store.students.find((s) => s.id === studentId) : undefined;
+    if (!student) {
+      res.status(401).json({ error: 'ยังไม่ได้เข้าสู่ระบบ' });
+      return;
+    }
+    res.json({ student });
+  });
+
+  // Auth: Logout
+  app.post('/api/auth/logout', (req, res) => {
+    const store = loadStore();
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (token && store.sessions?.[token]) {
+      delete store.sessions[token];
+      saveStore(store);
+    }
+    res.json({ ok: true });
   });
 
   // System 1: Create Market Item with Price Evaluation
@@ -520,11 +733,12 @@ async function startServer() {
     res.status(201).json(newItem);
   });
 
-  // System 1: Purchase Order Checkout
+  // System 1: Purchase Order Checkout + Dispatch Order Info to Sellers
   app.post('/api/market/orders', (req, res) => {
     const store = loadStore();
     const body = req.body as {
       itemIds: string[];
+      buyerId?: string;
       buyerName: string;
       buyerContact: string;
       deliveryMethod: 'pickup' | 'parcel';
@@ -546,8 +760,10 @@ async function startServer() {
     }
 
     const nowIso = getTodayIso();
+    const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     let totalAmount = 0;
     let totalOriginal = 0;
+    const createdNotifications: SellerNotification[] = [];
 
     for (const item of selectedItems) {
       item.status = 'sold';
@@ -555,29 +771,201 @@ async function startServer() {
       item.soldAt = nowIso;
       totalAmount += item.sellingPrice;
       totalOriginal += item.originalPrice;
+
+      const notification: SellerNotification = {
+        id: `sn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        orderId,
+        itemId: item.id,
+        itemTitle: item.title,
+        sellingPrice: item.sellingPrice,
+        originalPrice: item.originalPrice,
+        sellerId: item.sellerId,
+        sellerName: item.sellerName,
+        sellerContact: item.sellerContact,
+        buyerId: body.buyerId?.trim() || 'guest',
+        buyerName: body.buyerName.trim(),
+        buyerContact: body.buyerContact.trim(),
+        deliveryMethod: body.deliveryMethod,
+        paymentMethod: 'cod_school',
+        paymentStatus: 'pending_cod',
+        meetupLocation: body.deliveryNote?.trim() || '',
+        deliveryNote: body.deliveryNote?.trim() || '',
+        status: 'new',
+        isRead: false,
+        createdAt: nowIso,
+      };
+      store.sellerNotifications.unshift(notification);
+      createdNotifications.push(notification);
+
+      const sysMsg: OrderChatMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        notificationId: notification.id,
+        orderId,
+        senderId: 'system',
+        senderName: 'ระบบปันเรียน',
+        senderRole: 'system',
+        text: `ส่งคำสั่งซื้อ "${item.title}" ราคา ฿${item.sellingPrice} (ชำระเงินปลายทางที่โรงเรียน) จาก ${body.buyerName.trim()} ไปยัง ${item.sellerName} แล้ว กรุณาแชทเพื่อนัดสถานที่ส่งมอบหนังสือในโรงเรียน`,
+        createdAt: new Date().toISOString(),
+      };
+      store.orderMessages.push(sysMsg);
     }
 
     const order: MarketOrder = {
-      id: `ORD-${Date.now().toString().slice(-6)}`,
+      id: orderId,
       itemIds: selectedItems.map((i) => i.id),
       itemsSummary: selectedItems.map((i) => ({
         id: i.id,
         title: i.title,
         price: i.sellingPrice,
         originalPrice: i.originalPrice,
+        sellerId: i.sellerId,
+        sellerName: i.sellerName,
+        sellerContact: i.sellerContact,
       })),
       totalAmount,
       totalSaved: Math.max(0, totalOriginal - totalAmount),
+      buyerId: body.buyerId?.trim() || 'guest',
       buyerName: body.buyerName.trim(),
       buyerContact: body.buyerContact.trim(),
       deliveryMethod: body.deliveryMethod,
+      paymentMethod: 'cod_school',
       deliveryNote: body.deliveryNote?.trim() || '',
       createdAt: nowIso,
     };
 
     store.orders.unshift(order);
     saveStore(store);
-    res.status(201).json({ order, updatedItems: selectedItems });
+    broadcastWs({
+      type: 'order:created',
+      order,
+      sellerNotifications: createdNotifications,
+    });
+    res.status(201).json({
+      order,
+      updatedItems: selectedItems,
+      sellerNotifications: createdNotifications,
+    });
+  });
+
+  // System 1: Real-time Chat Message between Buyer & Seller for COD School Meetup
+  app.post('/api/market/orders/:notifId/messages', (req, res) => {
+    const store = loadStore();
+    const notif = store.sellerNotifications.find((n) => n.id === req.params.notifId);
+    if (!notif) {
+      res.status(404).json({ error: 'ไม่พบห้องสนทนาของคำสั่งซื้อนี้' });
+      return;
+    }
+
+    const body = req.body as {
+      senderId: string;
+      senderName: string;
+      senderRole: 'buyer' | 'seller';
+      text: string;
+    };
+
+    if (!body.text?.trim()) {
+      res.status(400).json({ error: 'กรุณาพิมพ์ข้อความก่อนส่ง' });
+      return;
+    }
+
+    const message: OrderChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      notificationId: notif.id,
+      orderId: notif.orderId,
+      senderId: body.senderId,
+      senderName: body.senderName,
+      senderRole: body.senderRole,
+      text: body.text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    store.orderMessages.push(message);
+    if (notif.status === 'new') {
+      notif.status = 'negotiating';
+      notif.isRead = true;
+      notif.updatedAt = getTodayIso();
+    }
+
+    saveStore(store);
+    broadcastWs({ type: 'chat:message', message, notification: notif });
+    res.status(201).json({ message, notification: notif });
+  });
+
+  // System 1: Seller/Buyer updates meetup location or COD completion status
+  app.patch('/api/market/seller-notifications/:id', (req, res) => {
+    const store = loadStore();
+    const notif = store.sellerNotifications.find((n) => n.id === req.params.id);
+    if (!notif) {
+      res.status(404).json({ error: 'ไม่พบข้อมูลคำสั่งซื้อของผู้ขาย' });
+      return;
+    }
+
+    const { action, meetupLocation, actorName } = req.body as {
+      action: 'acknowledge' | 'set_meetup' | 'complete' | 'mark_read';
+      meetupLocation?: string;
+      actorName?: string;
+    };
+
+    const today = getTodayIso();
+    let createdSystemMsg: OrderChatMessage | undefined;
+
+    if (action === 'acknowledge') {
+      notif.status = 'negotiating';
+      notif.isRead = true;
+      notif.updatedAt = today;
+    } else if (action === 'set_meetup') {
+      if (!meetupLocation?.trim()) {
+        res.status(400).json({ error: 'กรุณาระบุสถานที่และเวลานัดรับหนังสือที่โรงเรียน' });
+        return;
+      }
+      notif.meetupLocation = meetupLocation.trim();
+      notif.status = 'ready_meetup';
+      notif.isRead = true;
+      notif.updatedAt = today;
+
+      createdSystemMsg = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        notificationId: notif.id,
+        orderId: notif.orderId,
+        senderId: 'system',
+        senderName: actorName || 'ระบบปันเรียน',
+        senderRole: 'system',
+        text: `ตกลงจุดนัดรับหนังสือที่โรงเรียน: "${notif.meetupLocation}" · ชำระเงินปลายทาง ฿${notif.sellingPrice}`,
+        createdAt: new Date().toISOString(),
+      };
+      store.orderMessages.push(createdSystemMsg);
+    } else if (action === 'complete') {
+      notif.status = 'completed';
+      notif.paymentStatus = 'paid_cod';
+      notif.isRead = true;
+      notif.updatedAt = today;
+
+      createdSystemMsg = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        notificationId: notif.id,
+        orderId: notif.orderId,
+        senderId: 'system',
+        senderName: actorName || notif.sellerName,
+        senderRole: 'system',
+        text: `ยืนยันการส่งมอบหนังสือ "${notif.itemTitle}" และรับชำระเงินปลายทางที่โรงเรียน (฿${notif.sellingPrice}) เรียบร้อยแล้ว`,
+        createdAt: new Date().toISOString(),
+      };
+      store.orderMessages.push(createdSystemMsg);
+    } else if (action === 'mark_read') {
+      notif.isRead = true;
+      notif.updatedAt = today;
+    } else {
+      res.status(400).json({ error: 'คำสั่งไม่ถูกต้อง' });
+      return;
+    }
+
+    saveStore(store);
+    broadcastWs({
+      type: 'notification:updated',
+      notification: notif,
+      message: createdSystemMsg,
+    });
+    res.json({ notification: notif, message: createdSystemMsg });
   });
 
   // System 2: Add Lending/Exchange Book
@@ -815,6 +1203,7 @@ async function startServer() {
 
     store.knowledgeResources.unshift(newResource);
     saveStore(store);
+    broadcastWs({ type: 'knowledge:created', resource: newResource });
     res.status(201).json(newResource);
   });
 
@@ -829,6 +1218,7 @@ async function startServer() {
 
     resource.downloads += 1;
     saveStore(store);
+    broadcastWs({ type: 'knowledge:updated', resource });
 
     const encodedFileName = encodeURIComponent(resource.fileName);
     res.setHeader(
@@ -851,6 +1241,22 @@ async function startServer() {
     res.send(fallbackContent);
   });
 
+  // System 3: Inline preview for uploaded files
+  app.get('/api/knowledge/:id/preview', (req, res) => {
+    const store = loadStore();
+    const resource = store.knowledgeResources.find((r) => r.id === req.params.id);
+    if (!resource || !resource.storedFileName) {
+      res.status(404).json({ error: 'ไม่พบไฟล์ตัวอย่าง' });
+      return;
+    }
+    const targetPath = path.join(UPLOADS_DIR, resource.storedFileName);
+    if (!fs.existsSync(targetPath)) {
+      res.status(404).json({ error: 'ไม่พบไฟล์บนเซิร์ฟเวอร์' });
+      return;
+    }
+    res.sendFile(targetPath);
+  });
+
   app.post('/api/knowledge/:id/helpful', (req, res) => {
     const store = loadStore();
     const resource = store.knowledgeResources.find((r) => r.id === req.params.id);
@@ -860,6 +1266,7 @@ async function startServer() {
     }
     resource.helpfulCount += 1;
     saveStore(store);
+    broadcastWs({ type: 'knowledge:updated', resource });
     res.json(resource);
   });
 
@@ -879,6 +1286,8 @@ async function startServer() {
       contact: body.contact?.trim() || 'ติดต่อผ่านระบบปันเรียน',
     };
     store.students.push(newStudent);
+    store.credentials = store.credentials || {};
+    store.credentials[newStudent.id] = hashPassword('1234');
     saveStore(store);
     res.status(201).json(newStudent);
   });
@@ -899,7 +1308,7 @@ async function startServer() {
   }
 
   const port = Number(process.env.PORT) || 3000;
-  app.listen(port, '0.0.0.0', () => {
+  server.listen(port, '0.0.0.0', () => {
     console.log(`PunRian server listening on http://0.0.0.0:${port}`);
   });
 }

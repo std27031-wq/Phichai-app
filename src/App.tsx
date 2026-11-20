@@ -5,8 +5,10 @@ import {
   BookOpen,
   CalendarClock,
   Download,
+  Inbox,
+  LogOut,
+  MessageSquare,
   UserCheck,
-  X,
 } from 'lucide-react';
 import type {
   AppBootstrapData,
@@ -15,7 +17,9 @@ import type {
   KnowledgeResource,
   LendingBook,
   MarketOrder,
+  OrderChatMessage,
   ResourceKind,
+  SellerNotification,
   StudentProfile,
   SubjectCategory,
 } from './types.ts';
@@ -24,27 +28,36 @@ import { MarketplaceView } from './components/MarketplaceView.tsx';
 import { LendingView } from './components/LendingView.tsx';
 import { KnowledgeView } from './components/KnowledgeView.tsx';
 import { UnifiedCreateModal } from './components/UnifiedCreateModal.tsx';
+import { AuthGate } from './components/AuthGate.tsx';
+import { OrderChatModal } from './components/OrderChatModal.tsx';
 
 type ActiveTab = 'home' | 'market' | 'lending' | 'knowledge' | 'tracker';
+
+const AUTH_TOKEN_KEY = 'punrian_auth_token';
 
 export default function App() {
   const [data, setData] = useState<AppBootstrapData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
+  const [authToken, setAuthToken] = useState<string>(() => {
+    try {
+      return localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
+  const [authUser, setAuthUser] = useState<StudentProfile | null>(null);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
-  const [currentStudentId, setCurrentStudentId] = useState<string>('stu-1');
+  const [marketSubView, setMarketSubView] = useState<'catalog' | 'seller_inbox'>('catalog');
   const [cartIds, setCartIds] = useState<string[]>([]);
   const [isUnifiedCreateOpen, setIsUnifiedCreateOpen] = useState(false);
   const [pendingCreateFor, setPendingCreateFor] = useState<
     'market' | 'lending' | 'knowledge' | null
   >(null);
-
-  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
-  const [newStuName, setNewStuName] = useState('');
-  const [newStuGrade, setNewStuGrade] = useState('ม.5/1');
-  const [newStuSchool, setNewStuSchool] = useState('โรงเรียนพิชัย');
-  const [newStuContact, setNewStuContact] = useState('');
+  const [activeChatNotifId, setActiveChatNotifId] = useState<string | null>(null);
 
   const [toastMessage, setToastMessage] = useState('');
 
@@ -70,27 +83,219 @@ export default function App() {
   };
 
   useEffect(() => {
-    void fetchBootstrap();
+    const init = async () => {
+      await fetchBootstrap();
+      const savedToken = (() => {
+        try {
+          return localStorage.getItem(AUTH_TOKEN_KEY) || '';
+        } catch {
+          return '';
+        }
+      })();
+      if (savedToken) {
+        try {
+          const meRes = await fetch('/api/auth/me', {
+            headers: { Authorization: `Bearer ${savedToken}` },
+          });
+          if (meRes.ok) {
+            const meData = (await meRes.json()) as { student: StudentProfile };
+            setAuthToken(savedToken);
+            setAuthUser(meData.student);
+          } else {
+            try {
+              localStorage.removeItem(AUTH_TOKEN_KEY);
+            } catch {
+              // ignore storage errors
+            }
+            setAuthToken('');
+            setAuthUser(null);
+          }
+        } catch {
+          setAuthToken('');
+          setAuthUser(null);
+        }
+      }
+      setIsAuthChecked(true);
+    };
+    void init();
   }, []);
 
-  const currentStudent: StudentProfile = useMemo(() => {
-    if (!data?.students.length) {
-      return {
-        id: 'stu-1',
-        name: 'ปภาวิน พิชัยรักษ์',
-        studentCode: 'std27031',
-        grade: 'ม.5/2',
-        school: 'โรงเรียนพิชัย',
-        contact: 'ห้อง 502 · Line: papawin.stu',
+  useEffect(() => {
+    if (!authToken || !authUser) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const connect = () => {
+      if (cancelled) return;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data as string) as
+            | {
+                type: 'order:created';
+                order: MarketOrder;
+                sellerNotifications: SellerNotification[];
+              }
+            | {
+                type: 'chat:message';
+                message: OrderChatMessage;
+                notification?: SellerNotification;
+              }
+            | {
+                type: 'notification:updated';
+                notification: SellerNotification;
+                message?: OrderChatMessage;
+              }
+            | { type: 'knowledge:created'; resource: KnowledgeResource }
+            | { type: 'knowledge:updated'; resource: KnowledgeResource };
+
+          if (payload.type === 'order:created') {
+            setData((prev) => {
+              if (!prev) return prev;
+              const existingOrder = prev.orders.some((o) => o.id === payload.order.id);
+              const existingNotifIds = new Set(prev.sellerNotifications.map((n) => n.id));
+              const newNotifs = payload.sellerNotifications.filter(
+                (n) => !existingNotifIds.has(n.id)
+              );
+              return {
+                ...prev,
+                orders: existingOrder ? prev.orders : [payload.order, ...prev.orders],
+                sellerNotifications: [...newNotifs, ...prev.sellerNotifications],
+              };
+            });
+          } else if (payload.type === 'chat:message') {
+            setData((prev) => {
+              if (!prev) return prev;
+              const msgExists = prev.orderMessages.some((m) => m.id === payload.message.id);
+              return {
+                ...prev,
+                orderMessages: msgExists
+                  ? prev.orderMessages
+                  : [...prev.orderMessages, payload.message],
+                sellerNotifications: payload.notification
+                  ? prev.sellerNotifications.map((n) =>
+                      n.id === payload.notification!.id ? payload.notification! : n
+                    )
+                  : prev.sellerNotifications,
+              };
+            });
+          } else if (payload.type === 'notification:updated') {
+            setData((prev) => {
+              if (!prev) return prev;
+              const msgExists = payload.message
+                ? prev.orderMessages.some((m) => m.id === payload.message!.id)
+                : true;
+              return {
+                ...prev,
+                sellerNotifications: prev.sellerNotifications.map((n) =>
+                  n.id === payload.notification.id ? payload.notification : n
+                ),
+                orderMessages:
+                  payload.message && !msgExists
+                    ? [...prev.orderMessages, payload.message]
+                    : prev.orderMessages,
+              };
+            });
+          } else if (payload.type === 'knowledge:created') {
+            setData((prev) => {
+              if (!prev) return prev;
+              const exists = prev.knowledgeResources.some((r) => r.id === payload.resource.id);
+              return exists
+                ? prev
+                : { ...prev, knowledgeResources: [payload.resource, ...prev.knowledgeResources] };
+            });
+          } else if (payload.type === 'knowledge:updated') {
+            setData((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    knowledgeResources: prev.knowledgeResources.map((r) =>
+                      r.id === payload.resource.id ? payload.resource : r
+                    ),
+                  }
+                : prev
+            );
+          }
+        } catch {
+          // Ignore malformed WS payloads
+        }
       };
+
+      ws.onclose = () => {
+        if (!cancelled) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) ws.close();
+    };
+  }, [authToken, authUser?.id]);
+
+  const handleAuthSuccess = async (token: string, student: StudentProfile) => {
+    try {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+    } catch {
+      // ignore storage errors
     }
-    return data.students.find((s) => s.id === currentStudentId) ?? data.students[0];
-  }, [data, currentStudentId]);
+    setAuthToken(token);
+    setAuthUser(student);
+    await fetchBootstrap();
+    showToast(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${student.name}`);
+  };
+
+  const handleLogout = async () => {
+    if (authToken) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+      } catch {
+        // ignore network error on logout
+      }
+    }
+    try {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch {
+      // ignore storage errors
+    }
+    setAuthToken('');
+    setAuthUser(null);
+    setCartIds([]);
+    setActiveChatNotifId(null);
+    setActiveTab('home');
+  };
+
+  const currentStudent: StudentProfile = useMemo(() => {
+    if (authUser) return authUser;
+    return {
+      id: 'stu-1',
+      name: 'ปภาวิน พิชัยรักษ์',
+      studentCode: 'std27031',
+      grade: 'ม.5/2',
+      school: 'โรงเรียนพิชัย',
+      contact: 'ห้อง 502 · Line: papawin.stu',
+    };
+  }, [authUser]);
 
   const handleToggleCart = (itemId: string) => {
     setCartIds((prev) =>
       prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
     );
+  };
+
+  const handleAddToCart = (itemId: string) => {
+    setCartIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));
   };
 
   const handleCreateMarketItem = async (payload: {
@@ -123,6 +328,7 @@ export default function App() {
 
   const handleCheckout = async (payload: {
     itemIds: string[];
+    buyerId: string;
     buyerName: string;
     buyerContact: string;
     deliveryMethod: 'pickup' | 'parcel';
@@ -137,8 +343,64 @@ export default function App() {
     if (!res.ok) throw new Error(body.error || 'ไม่สามารถสั่งซื้อได้');
 
     await fetchBootstrap();
-    showToast(`ยืนยันคำสั่งซื้อ ${body.order.id} สำเร็จ`);
+    showToast(`ยืนยันคำสั่งซื้อ ${body.order.id} และส่งข้อมูลไปยังผู้ขายเรียบร้อยแล้ว`);
     return body.order as MarketOrder;
+  };
+
+  const handleUpdateSellerNotification = async (
+    notifId: string,
+    action: 'acknowledge' | 'set_meetup' | 'complete' | 'mark_read',
+    meetupLocation?: string
+  ) => {
+    const res = await fetch(`/api/market/seller-notifications/${notifId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        meetupLocation,
+        actorName: currentStudent.name,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      showToast(body.error || 'ไม่สามารถอัปเดตสถานะคำสั่งซื้อได้');
+      throw new Error(body.error || 'ไม่สามารถอัปเดตสถานะคำสั่งซื้อได้');
+    }
+    await fetchBootstrap();
+    if (action === 'acknowledge') showToast('รับทราบคำสั่งซื้อจากผู้ซื้อแล้ว');
+    else if (action === 'set_meetup') showToast('บันทึกสถานที่นัดรับหนังสือที่โรงเรียนแล้ว');
+    else if (action === 'complete')
+      showToast('ยืนยันการส่งมอบและรับชำระเงินปลายทางที่โรงเรียนเรียบร้อยแล้ว');
+  };
+
+  const handleSendOrderMessage = async (
+    notificationId: string,
+    text: string,
+    senderRole: 'buyer' | 'seller'
+  ) => {
+    const res = await fetch(`/api/market/orders/${notificationId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderId: currentStudent.id,
+        senderName: currentStudent.name,
+        senderRole,
+        text,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'ส่งข้อความไม่สำเร็จ');
+    setData((prev) => {
+      if (!prev) return prev;
+      const msgExists = prev.orderMessages.some((m) => m.id === body.message.id);
+      return {
+        ...prev,
+        orderMessages: msgExists ? prev.orderMessages : [...prev.orderMessages, body.message],
+        sellerNotifications: prev.sellerNotifications.map((n) =>
+          n.id === body.notification.id ? body.notification : n
+        ),
+      };
+    });
   };
 
   const handleAddLendingBook = async (payload: {
@@ -274,28 +536,14 @@ export default function App() {
     showToast('เริ่มดาวน์โหลดไฟล์ความรู้แล้ว');
   };
 
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStuName.trim()) return;
-    const res = await fetch('/api/students', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: newStuName,
-        grade: newStuGrade,
-        school: newStuSchool,
-        contact: newStuContact || 'ติดต่อผ่านระบบปันเรียน',
-      }),
-    });
-    if (res.ok) {
-      const created = (await res.json()) as StudentProfile;
-      await fetchBootstrap();
-      setCurrentStudentId(created.id);
-      setNewStuName('');
-      setNewStuContact('');
-      setIsAddStudentOpen(false);
-      showToast(`สลับบัญชีผู้ใช้งานเป็น ${created.name}`);
-    }
+  const handleHomeDownloadKnowledge = (resItem: KnowledgeResource) => {
+    handleRecordDownload(resItem.id);
+    const link = document.createElement('a');
+    link.href = `/api/knowledge/${resItem.id}/download`;
+    link.download = resItem.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const availableMarketCount =
@@ -312,6 +560,44 @@ export default function App() {
     data?.lendingTransactions.filter((t) => t.status === 'overdue').length ?? 0;
   const totalKnowledgeDownloads =
     data?.knowledgeResources.reduce((acc, r) => acc + r.downloads, 0) ?? 0;
+  const mySellerNewOrdersCount =
+    data?.sellerNotifications?.filter(
+      (n) => n.sellerId === currentStudent.id && n.status === 'new'
+    ).length ?? 0;
+  const mySellerTotalOrdersCount =
+    data?.sellerNotifications?.filter((n) => n.sellerId === currentStudent.id).length ?? 0;
+  const myBuyerActiveNotifications =
+    data?.sellerNotifications?.filter(
+      (n) => n.buyerId === currentStudent.id && n.status !== 'completed'
+    ) ?? [];
+
+  const activeChatNotification = useMemo(
+    () => data?.sellerNotifications?.find((n) => n.id === activeChatNotifId) ?? null,
+    [data?.sellerNotifications, activeChatNotifId]
+  );
+
+  const activeChatMessages = useMemo(
+    () =>
+      (data?.orderMessages ?? []).filter((m) => m.notificationId === activeChatNotifId),
+    [data?.orderMessages, activeChatNotifId]
+  );
+
+  if (!isAuthChecked) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <p className="text-sm font-medium text-slate-600">กำลังตรวจสอบสถานะบัญชีผู้ใช้งาน...</p>
+      </div>
+    );
+  }
+
+  if (!authToken || !authUser) {
+    return (
+      <AuthGate
+        demoStudents={data?.students ?? []}
+        onAuthSuccess={handleAuthSuccess}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -401,31 +687,43 @@ export default function App() {
       {/* Workspace Profile Strip (outside <header> to preserve Top Bar Contract) */}
       <div className="border-b border-slate-200 bg-slate-100/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-slate-600">
+          <div className="flex flex-wrap items-center gap-2 text-slate-700">
             <UserCheck className="w-4 h-4 text-blue-700 shrink-0" />
-            <span>ผู้ใช้งานปัจจุบัน:</span>
-            <select
-              value={currentStudent.id}
-              onChange={(e) => setCurrentStudentId(e.target.value)}
-              aria-label="เลือกโปรไฟล์นักเรียน"
-              className="bg-white border border-slate-300 rounded-md px-2.5 py-1 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
-            >
-              {data?.students.map((stu) => (
-                <option key={stu.id} value={stu.id}>
-                  {stu.name} ({stu.grade} · {stu.school})
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setIsAddStudentOpen(true)}
-              className="text-blue-700 hover:underline font-medium whitespace-nowrap cursor-pointer"
-            >
-              + เพิ่มโปรไฟล์นักเรียน
-            </button>
+            <span className="font-semibold text-slate-900">{currentStudent.name}</span>
+            <span className="text-slate-500 font-mono-tabular">
+              ({currentStudent.studentCode} · {currentStudent.grade} · {currentStudent.school})
+            </span>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-600">
+          <div className="flex flex-wrap items-center gap-4 text-slate-600">
+            {mySellerTotalOrdersCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMarketSubView('seller_inbox');
+                  setActiveTab('market');
+                }}
+                className="inline-flex items-center gap-1.5 text-blue-700 font-medium hover:underline cursor-pointer"
+              >
+                <Inbox className="w-3.5 h-3.5" />
+                <span>
+                  คำสั่งซื้อถึงคุณ (ผู้ขาย):{' '}
+                  {mySellerNewOrdersCount > 0
+                    ? `${mySellerNewOrdersCount} รายการใหม่`
+                    : `${mySellerTotalOrdersCount} รายการ`}
+                </span>
+              </button>
+            )}
+            {myBuyerActiveNotifications.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveChatNotifId(myBuyerActiveNotifications[0].id)}
+                className="inline-flex items-center gap-1.5 text-emerald-700 font-medium hover:underline cursor-pointer"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>แชทนัดรับหนังสือ ({myBuyerActiveNotifications.length})</span>
+              </button>
+            )}
             {overdueLoansCount > 0 && (
               <button
                 type="button"
@@ -436,9 +734,14 @@ export default function App() {
                 <span>มีรายการเลยกำหนดคืน {overdueLoansCount} รายการ</span>
               </button>
             )}
-            <span className="hidden sm:inline text-slate-500">
-              พื้นที่ส่งต่อหนังสือและชีทสรุปเพื่อลดความเหลื่อมล้ำทางการศึกษา
-            </span>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="inline-flex items-center gap-1 text-slate-600 hover:text-red-700 font-medium cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>ออกจากระบบ</span>
+            </button>
           </div>
         </div>
       </div>
@@ -694,7 +997,7 @@ export default function App() {
                       </p>
 
                       <div className="divide-y divide-slate-100 pt-2">
-                        {data.knowledgeResources.slice(0, 2).map((resItem) => (
+                        {data.knowledgeResources.slice(0, 3).map((resItem) => (
                           <div
                             key={resItem.id}
                             className="py-2.5 flex items-center justify-between gap-3 text-xs"
@@ -704,13 +1007,20 @@ export default function App() {
                                 {resItem.title}
                               </div>
                               <div className="text-slate-500">
-                                {resItem.subject} · {resItem.authorName}
+                                {resItem.subject} · {resItem.authorName} ·{' '}
+                                <span className="font-mono-tabular">
+                                  ดาวน์โหลด {resItem.downloads}
+                                </span>
                               </div>
                             </div>
-                            <span className="inline-flex items-center gap-1 text-slate-600 font-mono-tabular shrink-0">
-                              <Download className="w-3.5 h-3.5 text-blue-700" />
-                              <span>{resItem.downloads}</span>
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleHomeDownloadKnowledge(resItem)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-md shrink-0 cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>ดาวน์โหลด</span>
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -735,12 +1045,19 @@ export default function App() {
               <MarketplaceView
                 items={data.marketItems}
                 orders={data.orders}
+                sellerNotifications={data.sellerNotifications ?? []}
+                orderMessages={data.orderMessages ?? []}
                 currentStudent={currentStudent}
                 cartIds={cartIds}
+                initialSubView={marketSubView}
+                onSubViewChange={setMarketSubView}
                 onToggleCart={handleToggleCart}
+                onAddToCart={handleAddToCart}
                 onClearCart={() => setCartIds([])}
                 onCreateItem={handleCreateMarketItem}
                 onCheckout={handleCheckout}
+                onUpdateSellerNotification={handleUpdateSellerNotification}
+                onOpenChat={(notif) => setActiveChatNotifId(notif.id)}
                 openCreateInitially={pendingCreateFor === 'market'}
                 onConsumeOpenCreate={() => setPendingCreateFor(null)}
               />
@@ -818,91 +1135,20 @@ export default function App() {
         }}
       />
 
-      {/* Add Student Profile Modal */}
-      {isAddStudentOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-semibold text-slate-900">เพิ่มโปรไฟล์นักเรียน</h3>
-              <button
-                type="button"
-                onClick={() => setIsAddStudentOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleAddStudent} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  ชื่อ-นามสกุล *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newStuName}
-                  onChange={(e) => setNewStuName(e.target.value)}
-                  placeholder="เช่น กานต์ธิดา มั่งมี"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">ระดับชั้น</label>
-                  <input
-                    type="text"
-                    required
-                    value={newStuGrade}
-                    onChange={(e) => setNewStuGrade(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">โรงเรียน</label>
-                  <input
-                    type="text"
-                    required
-                    value={newStuSchool}
-                    onChange={(e) => setNewStuSchool(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  ช่องทางติดต่อ (ห้อง / Line)
-                </label>
-                <input
-                  type="text"
-                  value={newStuContact}
-                  onChange={(e) => setNewStuContact(e.target.value)}
-                  placeholder="เช่น ห้อง 504 · Line: kanthida"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddStudentOpen(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg cursor-pointer"
-                >
-                  บันทึกและสลับบัญชี
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Buyer-Seller Real-Time Meetup & COD Chat Modal */}
+      <OrderChatModal
+        notification={activeChatNotification}
+        messages={activeChatMessages}
+        currentStudent={currentStudent}
+        onClose={() => setActiveChatNotifId(null)}
+        onSendMessage={handleSendOrderMessage}
+        onSaveMeetupLocation={async (notificationId, meetupLocation) => {
+          await handleUpdateSellerNotification(notificationId, 'set_meetup', meetupLocation);
+        }}
+        onCompleteCodOrder={async (notificationId) => {
+          await handleUpdateSellerNotification(notificationId, 'complete');
+        }}
+      />
 
       {/* Toast Feedback */}
       {toastMessage && (

@@ -319,7 +319,7 @@ export function KnowledgeView({
                       className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>ดาวน์โหลด</span>
+                      <span>ดาวน์โหลดเก็บไว้</span>
                     </button>
 
                     <button
@@ -393,12 +393,28 @@ export function KnowledgeView({
                   {previewItem.contentBody}
                 </pre>
               </div>
+            ) : previewItem.storedFileName && previewItem.format === 'Image' ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 overflow-hidden">
+                <img
+                  src={`/api/knowledge/${previewItem.id}/preview`}
+                  alt={previewItem.title}
+                  className="max-h-96 w-full object-contain rounded"
+                />
+              </div>
+            ) : previewItem.storedFileName && previewItem.format === 'PDF' ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
+                <iframe
+                  src={`/api/knowledge/${previewItem.id}/preview`}
+                  title={previewItem.title}
+                  className="w-full h-96 bg-white"
+                />
+              </div>
             ) : (
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center space-y-2">
                 <FileText className="w-8 h-8 text-blue-700 mx-auto" strokeWidth={1.5} />
                 <div className="text-sm font-medium text-slate-900">{previewItem.fileName}</div>
                 <p className="text-xs text-slate-500">
-                  ไฟล์เอกสารพร้อมดาวน์โหลดไปใช้งานและพิมพ์ทบทวนได้ทันที
+                  ไฟล์เอกสารพร้อมดาวน์โหลดเก็บไว้ใช้งานและพิมพ์ทบทวนได้ทันที
                 </p>
               </div>
             )}

@@ -91,13 +91,53 @@ export interface MarketOrder {
     title: string;
     price: number;
     originalPrice: number;
+    sellerId?: string;
+    sellerName?: string;
+    sellerContact?: string;
   }[];
   totalAmount: number;
   totalSaved: number;
+  buyerId?: string;
   buyerName: string;
   buyerContact: string;
   deliveryMethod: 'pickup' | 'parcel';
+  paymentMethod?: 'cod_school';
   deliveryNote: string;
+  createdAt: string;
+}
+
+export interface SellerNotification {
+  id: string;
+  orderId: string;
+  itemId: string;
+  itemTitle: string;
+  sellingPrice: number;
+  originalPrice: number;
+  sellerId: string;
+  sellerName: string;
+  sellerContact: string;
+  buyerId: string;
+  buyerName: string;
+  buyerContact: string;
+  deliveryMethod: 'pickup' | 'parcel';
+  paymentMethod?: 'cod_school';
+  paymentStatus?: 'pending_cod' | 'paid_cod';
+  meetupLocation?: string;
+  deliveryNote: string;
+  status: 'new' | 'acknowledged' | 'negotiating' | 'ready_meetup' | 'completed';
+  isRead: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface OrderChatMessage {
+  id: string;
+  notificationId: string;
+  orderId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'buyer' | 'seller' | 'system';
+  text: string;
   createdAt: string;
 }
 
@@ -167,6 +207,8 @@ export interface KnowledgeResource {
 export interface AppBootstrapData {
   marketItems: MarketItem[];
   orders: MarketOrder[];
+  sellerNotifications: SellerNotification[];
+  orderMessages: OrderChatMessage[];
   lendingBooks: LendingBook[];
   lendingTransactions: LendingTransaction[];
   knowledgeResources: KnowledgeResource[];
